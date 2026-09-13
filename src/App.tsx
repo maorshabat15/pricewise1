@@ -75,7 +75,7 @@ export default function App() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('https://pricewise-server-wpny.onrender.com/api/products');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -88,7 +88,7 @@ export default function App() {
           setAllProducts(combined);
         }
       }
-      const pricesRes = await fetch('/api/prices');
+      const pricesRes = await fetch('https://pricewise-server-wpny.onrender.com/api/prices');
       if (pricesRes.ok) {
         const pricesData = await pricesRes.json();
         if (Array.isArray(pricesData)) {
