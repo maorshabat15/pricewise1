@@ -471,7 +471,8 @@ export function applyChpVerificationToItem(item: GroceryItem, forceMatch: boolea
     barcode: result.chpRecord?.barcode || item.barcode,
     unit: result.chpRecord?.unit || item.unit,
     category: result.chpRecord?.category || item.category,
-    prices: forceMatch ? { ...result.verifiedPrices } : item.prices,
+    // Never overwrite real prices from the price server with estimates
+    prices: forceMatch && item.pricesSource !== 'live' ? { ...result.verifiedPrices } : item.prices,
     chpVerification: verificationInfo,
   };
 }

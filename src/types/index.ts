@@ -144,6 +144,10 @@ export interface GroceryItem {
     reason: string;
   };
   chpVerification?: ChpVerificationInfo;
+  /** 'live' = prices came from the MongoDB price server; otherwise local estimates */
+  pricesSource?: 'live' | 'estimate';
+  /** Name we last asked the price server about, so we don't refetch on every render */
+  livePricesCheckedFor?: string;
 }
 
 export type StoreKey = 'shufersal' | 'ramiLevy' | 'yohananof' | 'victory' | 'carrefour' | 'osherAd';

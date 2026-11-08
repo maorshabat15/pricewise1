@@ -10,6 +10,7 @@ import {
   getRealChainPricesForText,
 } from './data/priceWiseData';
 import { applyChpVerificationToItem } from './services/chpVerificationService';
+import { fetchLiveChainPrices } from './services/aiService';
 import { Navbar } from './components/Navbar';
 import { ChatStudio } from './components/ChatStudio';
 import { NotesStudio } from './components/NotesStudio';
@@ -215,6 +216,48 @@ export default function App() {
     }
   }, [groceryItems, currentUser]);
 
+  // Replace estimated cart prices with real chain prices from the price server.
+  // Each item is checked once per name; chains with no real price keep their estimate.
+  const livePriceRequestsInFlight = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const pending = groceryItems.filter(
+      (item) =>
+        item.name &&
+        item.livePricesCheckedFor !== item.name &&
+        !livePriceRequestsInFlight.current.has(`${item.id}|${item.name}`)
+    );
+    if (pending.length === 0) return;
+
+    pending.forEach((item) => livePriceRequestsInFlight.current.add(`${item.id}|${item.name}`));
+
+    (async () => {
+      // Small batches so a big cart doesn't flood the server
+      for (let i = 0; i < pending.length; i += 3) {
+        const batch = pending.slice(i, i + 3);
+        const results = await Promise.all(batch.map((item) => fetchLiveChainPrices(item.name)));
+
+        batch.forEach((item, idx) => {
+          const live = results[idx];
+          livePriceRequestsInFlight.current.delete(`${item.id}|${item.name}`);
+          if (live === undefined) return; // server unreachable: try again on next cart change
+
+          setGroceryItems((prev) =>
+            prev.map((existing) => {
+              if (existing.id !== item.id || existing.name !== item.name) return existing;
+              if (!live) return { ...existing, livePricesCheckedFor: existing.name };
+              return {
+                ...existing,
+                prices: { ...existing.prices, ...live },
+                pricesSource: 'live',
+                livePricesCheckedFor: existing.name,
+              };
+            })
+          );
+        });
+      }
+    })();
+  }, [groceryItems]);
+
   useEffect(() => {
     localStorage.setItem('cw_notes', JSON.stringify(notes));
     if (currentUser && isInitialCloudLoadDone.current) {
@@ -340,7 +383,10 @@ export default function App() {
           updated[existingIdx] = {
             ...updated[existingIdx],
             quantity: Number((updated[existingIdx].quantity + item.quantity).toFixed(2)),
-            prices: item.prices || updated[existingIdx].prices,
+            prices:
+              updated[existingIdx].pricesSource === 'live'
+                ? updated[existingIdx].prices
+                : item.prices || updated[existingIdx].prices,
           };
         } else {
           updated.unshift(item);

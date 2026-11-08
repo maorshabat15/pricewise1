@@ -1,4 +1,4 @@
-import { PersonaMode, PersonalGeminiConfig, UserProfileContext, AppContextData } from '../types';
+import { PersonaMode, PersonalGeminiConfig, UserProfileContext, AppContextData, StoreKey } from '../types';
 
 export interface ChatRequestPayload {
   message: string;
@@ -69,6 +69,32 @@ export async function getSupermarketPrices(itemName: string) {
     console.error("Failed to fetch supermarket prices:", err);
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * Real per-chain prices for one product from the price server.
+ * Returns only the chains that actually have a price, null if nothing real was found,
+ * or undefined if the server could not be reached.
+ */
+export async function fetchLiveChainPrices(
+  itemName: string
+): Promise<Partial<Record<StoreKey, number>> | null | undefined> {
+  const data = await getSupermarketPrices(itemName);
+  // undefined = server unreachable (e.g. Render cold start) -> caller may retry later
+  if (!data || data.success === false) return undefined;
+  const products: any[] = Array.isArray(data?.products) ? data.products : [];
+  const best = products.find((p) => !p?.isEstimated && Array.isArray(p?.prices) && p.prices.length > 0);
+  if (!best) return null;
+
+  const result: Partial<Record<StoreKey, number>> = {};
+  for (const entry of best.prices) {
+    const key = entry?.chainKey as StoreKey | undefined;
+    const price = Number(entry?.price);
+    if (key && Number.isFinite(price) && price > 0) {
+      result[key] = price;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 export async function checkServerGeminiEnv(): Promise<{ hasKey: boolean; defaultModel?: string }> {
